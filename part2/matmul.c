@@ -19,18 +19,16 @@ int block8_ceil(const int x) {
 void construct_matrices(int *n_ptr, int *m_ptr, int *l_ptr,
                         int **a_mat_ptr, int **b_mat_ptr)
 {
-    int get_int;
-    int _n, _m, _l;
+    int get_int, _m;
 
     // Get matrix size.
     scanf("%d %d %d", n_ptr, m_ptr, l_ptr);
-    _n = block8_ceil(*n_ptr);
     _m = block8_ceil(*m_ptr);
-    _l = block8_ceil(*l_ptr);
 
     // Allocate memory space for matrices.
-    *a_mat_ptr = (int *)calloc(_n * _m, sizeof(int));
-    *b_mat_ptr = (int *)calloc(_m * _l, sizeof(int));
+    *a_mat_ptr = (int *)calloc(*n_ptr * _m, sizeof(int));
+    // Create a transposed b matrix.
+    *b_mat_ptr = (int *)calloc(*l_ptr * _m, sizeof(int));
 
     // Get data from stdin.
     for (int arow = 0; arow < *n_ptr; arow++) { // Matrix a
@@ -40,10 +38,11 @@ void construct_matrices(int *n_ptr, int *m_ptr, int *l_ptr,
         }
     }
 
-    for (int brow = 0; brow < *m_ptr; brow++) { // Matrix b
+    for (int brow = 0; brow < *m_ptr; brow++) { // Transpose of matrix b
         for (int bcol = 0; bcol < *l_ptr; bcol++) {
             scanf("%d", &get_int);
-            (*b_mat_ptr)[brow*_l + bcol] = get_int;
+            (*b_mat_ptr)[bcol*_m + brow] = get_int; // Remind the index. It's
+                                                    // transposed.
         }
     }
 }
@@ -58,25 +57,17 @@ void construct_matrices(int *n_ptr, int *m_ptr, int *l_ptr,
 void matrix_multiply(const int n, const int m, const int l,
                      const int *__restrict a_mat, const int *__restrict b_mat)
 {
-    int _n = block8_ceil(n);
     int _m = block8_ceil(m);
-    int _l = block8_ceil(l);
-    int *__restrict c = (int *)malloc(_n * _l * sizeof(int));
+    int *__restrict c = (int *)malloc(n * l * sizeof(int));
 
     // Matrix multiplication.
-    __builtin_assume(_n%8 == 0);
-    __builtin_assume(_m%8 == 0);
-    __builtin_assume(_l%8 == 0);
-    a_mat = (const int *)__builtin_assume_aligned(a_mat, 32);
-    b_mat = (const int *)__builtin_assume_aligned(b_mat, 32);
-    c = (int *)__builtin_assume_aligned(c, 32);
-    for (int crow = 0; crow < _n; crow++) {
-        for (int ccol = 0; ccol < _l; ccol++) {
+    for (int crow = 0; crow < n; crow++) {
+        for (int ccol = 0; ccol < l; ccol++) {
             int tmp = 0;
             for (int k = 0; k < _m; k++) {
-                tmp += a_mat[crow*_m + k] * b_mat[k*_l + ccol];
+                tmp += a_mat[crow*_m + k] * b_mat[ccol*_m + k];
             }
-            c[crow*_l + ccol] = tmp;
+            c[crow*l + ccol] = tmp;
         }
     }
 
@@ -95,9 +86,9 @@ void matrix_multiply(const int n, const int m, const int l,
     }
 
     for (int crow = 0; crow < n; crow++) {
-        buf_cnt += sprintf(&file_buf[buf_cnt], "%d", c[crow*_l]);
+        buf_cnt += sprintf(&file_buf[buf_cnt], "%d", c[crow*l]);
         for (int ccol = 1; ccol < l; ccol++) {
-            buf_cnt += sprintf(&file_buf[buf_cnt], " %d", c[crow*_l + ccol]);
+            buf_cnt += sprintf(&file_buf[buf_cnt], " %d", c[crow*l + ccol]);
             if (buf_cnt >= CHUNK_SIZE) {
                 fwrite(file_buf, CHUNK_SIZE, 1, fp);
                 buf_cnt -= CHUNK_SIZE;
@@ -117,9 +108,9 @@ void matrix_multiply(const int n, const int m, const int l,
 #else
     // Print the result.
     for (int crow = 0; crow < n; crow++) {
-        printf("%d", c[crow*_l];
+        printf("%d", c[crow*l]);
         for (int ccol = 1; ccol < l; ccol++) {
-            printf(" %d", c[crow*_l + ccol]);
+            printf(" %d", c[crow*l + ccol]);
         }
         printf("\n");
     }

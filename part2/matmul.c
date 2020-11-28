@@ -5,7 +5,7 @@
 #include <mpi.h>
 #include <immintrin.h>
 
-#define DEBUG 1
+//#define DEBUG 1
 
 int block8_ceil(const int x) {
     return (x+7) & (~(unsigned int)0x7);
@@ -22,34 +22,42 @@ void construct_matrices(int *n_ptr, int *m_ptr, int *l_ptr,
                         int **a_mat_ptr, int **b_mat_ptr)
 {
     int get_int, _m;
+    char ch;
 
     // Get matrix size.
     scanf("%d %d %d", n_ptr, m_ptr, l_ptr);
     _m = block8_ceil(*m_ptr);
 
     // Allocate memory space for matrices.
-    //*a_mat_ptr = (int *)calloc(*n_ptr * _m, sizeof(int));
     posix_memalign ((void **)a_mat_ptr, 32, *n_ptr * _m * sizeof(int));
     memset(*a_mat_ptr, 0, *n_ptr * _m * sizeof(int));
     // Create a transposed b matrix.
-    //*b_mat_ptr = (int *)calloc(*l_ptr * _m, sizeof(int));
     posix_memalign ((void **)b_mat_ptr, 32, *l_ptr * _m * sizeof(int));
     memset(*b_mat_ptr, 0, *l_ptr * _m * sizeof(int));
 
     // Get data from stdin.
+    getchar_unlocked();
     for (int arow = 0; arow < *n_ptr; arow++) { // Matrix a
         for (int acol = 0; acol < *m_ptr; acol++) {
-            scanf("%d", &get_int);
+            get_int = getchar_unlocked() & 0xF;
+            while ((ch = getchar_unlocked()) != ' ') {
+                get_int = get_int*10 + (ch&0xF);
+            }
             (*a_mat_ptr)[arow*_m + acol] = get_int;
         }
+        getchar_unlocked();
     }
 
     for (int brow = 0; brow < *m_ptr; brow++) { // Transpose of matrix b
         for (int bcol = 0; bcol < *l_ptr; bcol++) {
-            scanf("%d", &get_int);
+            get_int = getchar_unlocked() & 0xF;
+            while ((ch = getchar_unlocked()) != ' ') {
+                get_int = get_int*10 + (ch&0xF);
+            }
             (*b_mat_ptr)[bcol*_m + brow] = get_int; // Remind the index. It's
                                                     // transposed.
-         }
+        }
+        getchar_unlocked();
     }
 }
 
@@ -85,16 +93,15 @@ void matrix_multiply(const int n, const int m, const int l,
 
     // Matrix multiplication.
     for (int crow = 0; crow < n; crow++) {
-        int a_base = crow * _m;
         for (int ccol = 0; ccol < l; ccol++) {
-            __m256i a, b, tmp;
+            __m256i a, b, ab, tmp;
 
             tmp = _mm256_setzero_si256();
             for (int k = 0; k < _m; k += 8) {
                 a = _mm256_load_si256((__m256i *)(a_mat + crow*_m + k));
                 b = _mm256_load_si256((__m256i *)(b_mat + ccol*_m + k));
-                a = _mm256_mullo_epi16(a, b);
-                tmp = _mm256_add_epi32(tmp, a);
+                ab = _mm256_mullo_epi16(a, b);
+                tmp = _mm256_add_epi32(tmp, ab);
             }
             c[crow*l + ccol] = hsum_8x32(tmp);
         }

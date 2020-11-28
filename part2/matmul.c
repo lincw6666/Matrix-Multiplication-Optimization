@@ -143,12 +143,31 @@ void matrix_multiply(const int n, const int m, const int l,
     fclose(fp);
 #else
     // Print the result.
+    char buf[100000];
+    int buf_idx = 99999;
+
+    buf[99999] = '\n';
     for (int crow = 0; crow < n; crow++) {
-        printf("%d", c[crow*l]);
-        for (int ccol = 1; ccol < l; ccol++) {
-            printf(" %d", c[crow*l + ccol]);
+        int tmp;
+        for (int ccol = l-1; ccol > 0; ccol--) {
+            tmp = c[crow*l + ccol];
+            if (tmp != 0) {
+                for (; tmp > 0; tmp /= 10) {
+                    buf[--buf_idx] = (tmp%10) | 0x30;
+                }
+            }
+            else buf[--buf_idx] = '0';
+            buf[--buf_idx] = ' ';
         }
-        printf("\n");
+        tmp = c[crow*l];
+        if (tmp != 0) {
+            for (; tmp > 0; tmp /= 10) {
+                buf[--buf_idx] = (tmp%10) | 0x30;
+            }
+        }
+        else buf[--buf_idx] = '0';
+        fwrite_unlocked(&buf[buf_idx], 100000-buf_idx, 1, stdout);
+        buf_idx = 99999;
     }
 #endif
 

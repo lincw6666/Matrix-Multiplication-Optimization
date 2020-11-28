@@ -7,8 +7,8 @@
 
 //#define DEBUG 1
 
-int block8_ceil(const int x) {
-    return (x+7) & (~(unsigned int)0x7);
+int block16_ceil(const int x) {
+    return (x+0xF) & (~(unsigned int)0xF);
 }
 
 // Read size of matrix_a and matrix_b (n, m, l) and whole data of matrixes from stdin
@@ -21,19 +21,22 @@ int block8_ceil(const int x) {
 void construct_matrices(int *n_ptr, int *m_ptr, int *l_ptr,
                         int **a_mat_ptr, int **b_mat_ptr)
 {
-    int get_int, _m;
+    int _m;
+    int16_t get_int, *a_mat, *b_mat;
     char ch;
 
     // Get matrix size.
     scanf("%d %d %d", n_ptr, m_ptr, l_ptr);
-    _m = block8_ceil(*m_ptr);
+    _m = block16_ceil(*m_ptr);
 
     // Allocate memory space for matrices.
-    posix_memalign ((void **)a_mat_ptr, 32, *n_ptr * _m * sizeof(int));
-    memset(*a_mat_ptr, 0, *n_ptr * _m * sizeof(int));
+    posix_memalign ((void **)a_mat_ptr, 32, *n_ptr * _m * sizeof(int16_t) + 64);
+    memset(*a_mat_ptr, 0, *n_ptr * _m * sizeof(int16_t) + 64);
+    a_mat = (int16_t *)*a_mat_ptr;
     // Create a transposed b matrix.
-    posix_memalign ((void **)b_mat_ptr, 32, *l_ptr * _m * sizeof(int));
-    memset(*b_mat_ptr, 0, *l_ptr * _m * sizeof(int));
+    posix_memalign ((void **)b_mat_ptr, 32, *l_ptr * _m * sizeof(int16_t) + 64);
+    memset(*b_mat_ptr, 0, *l_ptr * _m * sizeof(int16_t) + 64);
+    b_mat = (int16_t *)*b_mat_ptr;
 
     // Get data from stdin.
     getchar_unlocked();
@@ -43,7 +46,7 @@ void construct_matrices(int *n_ptr, int *m_ptr, int *l_ptr,
             while ((ch = getchar_unlocked()) != ' ') {
                 get_int = get_int*10 + (ch&0xF);
             }
-            (*a_mat_ptr)[arow*_m + acol] = get_int;
+            a_mat[arow*_m + acol] = get_int;
         }
         getchar_unlocked();
     }
@@ -54,8 +57,8 @@ void construct_matrices(int *n_ptr, int *m_ptr, int *l_ptr,
             while ((ch = getchar_unlocked()) != ' ') {
                 get_int = get_int*10 + (ch&0xF);
             }
-            (*b_mat_ptr)[bcol*_m + brow] = get_int; // Remind the index. It's
-                                                    // transposed.
+            b_mat[bcol*_m + brow] = get_int; // Remind the index. It's
+                                             // transposed.
         }
         getchar_unlocked();
     }
@@ -88,7 +91,7 @@ int hsum_8x32(__m256i v)
 void matrix_multiply(const int n, const int m, const int l,
                      const int *__restrict a_mat, const int *__restrict b_mat)
 {
-    int _m = block8_ceil(m);
+    int _m = block16_ceil(m) >> 1;
     int *__restrict c = (int *)malloc(n * l * sizeof(int));
 
     // Matrix multiplication.
@@ -100,7 +103,7 @@ void matrix_multiply(const int n, const int m, const int l,
             for (int k = 0; k < _m; k += 8) {
                 a = _mm256_load_si256((__m256i *)(a_mat + crow*_m + k));
                 b = _mm256_load_si256((__m256i *)(b_mat + ccol*_m + k));
-                ab = _mm256_mullo_epi16(a, b);
+                ab = _mm256_madd_epi16(a, b);
                 tmp = _mm256_add_epi32(tmp, ab);
             }
             c[crow*l + ccol] = hsum_8x32(tmp);

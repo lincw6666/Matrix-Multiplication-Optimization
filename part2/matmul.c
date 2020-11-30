@@ -39,6 +39,7 @@ void construct_matrices(int *n_ptr, int *m_ptr, int *l_ptr,
     b_mat = (int16_t *)*b_mat_ptr;
 
     // Get data from stdin.
+    flockfile(stdin);
     getchar_unlocked();
     for (int arow = 0; arow < *n_ptr; arow++) { // Matrix a
         for (int acol = 0; acol < *m_ptr; acol++) {
@@ -62,6 +63,7 @@ void construct_matrices(int *n_ptr, int *m_ptr, int *l_ptr,
         }
         getchar_unlocked();
     }
+    funlockfile(stdin);
 }
 
 inline int hsum_epi32_avx(__m128i x)
@@ -91,22 +93,75 @@ inline int hsum_8x32(__m256i v)
 void matrix_multiply(const int n, const int m, const int l,
                      const int *__restrict a_mat, const int *__restrict b_mat)
 {
-    int _m = block16_ceil(m) >> 1;
+    int _m = block16_ceil(m) >> 1, step = 4096 / _m, ccol;
     int *__restrict c = (int *)malloc(n * l * sizeof(int));
 
     // Matrix multiplication.
-    for (int crow = 0; crow < n; crow++) {
-        for (int ccol = 0; ccol < l; ccol++) {
+    for (ccol = 0; ccol+step < l; ccol += step) {
+        int crow;
+
+        for (crow = 0; crow+step < n; crow += step) {
+            for (int sa = 0; sa < step; sa++) {
+                for (int sb = 0; sb < step; sb++) {
+                    __m256i a, b, ab, tmp;
+
+                    tmp = _mm256_setzero_si256();
+                    for (int k = 0; k < _m; k += 8) {
+                        a = _mm256_load_si256((__m256i *)(a_mat + (crow+sa)*_m + k));
+                        b = _mm256_load_si256((__m256i *)(b_mat + (ccol+sb)*_m + k));
+                        ab = _mm256_madd_epi16(a, b);
+                        tmp = _mm256_add_epi32(tmp, ab);
+                    }
+                    c[(crow+sa)*l + (ccol+sb)] = hsum_8x32(tmp);
+                }
+            }
+        }
+        for (; crow < n; crow++) {
+            for (int sb = 0; sb < step; sb++) {
+                __m256i a, b, ab, tmp;
+
+                tmp = _mm256_setzero_si256();
+                for (int k = 0; k < _m; k += 8) {
+                    a = _mm256_load_si256((__m256i *)(a_mat + crow*_m + k));
+                    b = _mm256_load_si256((__m256i *)(b_mat + (ccol+sb)*_m + k));
+                    ab = _mm256_madd_epi16(a, b);
+                    tmp = _mm256_add_epi32(tmp, ab);
+                }
+                c[crow*l + (ccol+sb)] = hsum_8x32(tmp);
+            }
+        }
+    }
+    // Do the remain part.
+    int crow;
+
+    for (crow = 0; crow+step < n; crow += step) {
+        for (int sa = 0; sa < step; sa++) {
+            for (int sb = ccol; sb < l; sb++) {
+                __m256i a, b, ab, tmp;
+
+                tmp = _mm256_setzero_si256();
+                for (int k = 0; k < _m; k += 8) {
+                    a = _mm256_load_si256((__m256i *)(a_mat + (crow+sa)*_m + k));
+                    b = _mm256_load_si256((__m256i *)(b_mat + sb*_m + k));
+                    ab = _mm256_madd_epi16(a, b);
+                    tmp = _mm256_add_epi32(tmp, ab);
+                }
+                c[(crow+sa)*l + sb] = hsum_8x32(tmp);
+            }
+        }
+    }
+    for (; crow < n; crow++) {
+        for (int sb = ccol; sb < l; sb++) {
             __m256i a, b, ab, tmp;
 
             tmp = _mm256_setzero_si256();
             for (int k = 0; k < _m; k += 8) {
                 a = _mm256_load_si256((__m256i *)(a_mat + crow*_m + k));
-                b = _mm256_load_si256((__m256i *)(b_mat + ccol*_m + k));
+                b = _mm256_load_si256((__m256i *)(b_mat + sb*_m + k));
                 ab = _mm256_madd_epi16(a, b);
                 tmp = _mm256_add_epi32(tmp, ab);
             }
-            c[crow*l + ccol] = hsum_8x32(tmp);
+            c[crow*l + sb] = hsum_8x32(tmp);
         }
     }
 
@@ -169,7 +224,7 @@ void matrix_multiply(const int n, const int m, const int l,
             }
         }
         else buf[--buf_idx] = '0';
-        fwrite_unlocked(&buf[buf_idx], 100000-buf_idx, 1, stdout);
+        fwrite(&buf[buf_idx], 100000-buf_idx, 1, stdout);
         buf_idx = 99999;
     }
 #endif

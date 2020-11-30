@@ -7,7 +7,7 @@
 
 //#define DEBUG 1
 
-int block16_ceil(const int x) {
+inline int block16_ceil(const int x) {
     return (x+0xF) & (~(unsigned int)0xF);
 }
 
@@ -30,12 +30,12 @@ void construct_matrices(int *n_ptr, int *m_ptr, int *l_ptr,
     _m = block16_ceil(*m_ptr);
 
     // Allocate memory space for matrices.
-    posix_memalign ((void **)a_mat_ptr, 32, *n_ptr * _m * sizeof(int16_t) + 64);
-    memset(*a_mat_ptr, 0, *n_ptr * _m * sizeof(int16_t) + 64);
+    posix_memalign ((void **)a_mat_ptr, 64, *n_ptr * _m * sizeof(int16_t));
+    memset(*a_mat_ptr, 0, *n_ptr * _m * sizeof(int16_t));
     a_mat = (int16_t *)*a_mat_ptr;
     // Create a transposed b matrix.
-    posix_memalign ((void **)b_mat_ptr, 32, *l_ptr * _m * sizeof(int16_t) + 64);
-    memset(*b_mat_ptr, 0, *l_ptr * _m * sizeof(int16_t) + 64);
+    posix_memalign ((void **)b_mat_ptr, 64, *l_ptr * _m * sizeof(int16_t));
+    memset(*b_mat_ptr, 0, *l_ptr * _m * sizeof(int16_t));
     b_mat = (int16_t *)*b_mat_ptr;
 
     // Get data from stdin.
@@ -64,7 +64,7 @@ void construct_matrices(int *n_ptr, int *m_ptr, int *l_ptr,
     }
 }
 
-int hsum_epi32_avx(__m128i x)
+inline int hsum_epi32_avx(__m128i x)
 {
     __m128i hi64  = _mm_unpackhi_epi64(x, x);
     __m128i sum64 = _mm_add_epi32(hi64, x);
@@ -74,7 +74,7 @@ int hsum_epi32_avx(__m128i x)
 }
 
 // only needs AVX2
-int hsum_8x32(__m256i v)
+inline int hsum_8x32(__m256i v)
 {
     __m128i sum128 = _mm_add_epi32(_mm256_castsi256_si128(v),
                                    _mm256_extracti128_si256(v, 1));

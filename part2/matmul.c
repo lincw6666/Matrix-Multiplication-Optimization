@@ -6,6 +6,7 @@
 #include <immintrin.h>
 
 //#define DEBUG 1
+int rank;
 
 inline int block32_ceil(const int x) {
     return (x+0x1F) & (~(unsigned int)0x1F);
@@ -25,6 +26,8 @@ void construct_matrices(int *n_ptr, int *m_ptr, int *l_ptr,
     int8_t get_int, *a_mat, *b_mat;
     char ch;
 
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    if (rank > 0) return ;
     // Get matrix size.
     scanf("%d %d %d", n_ptr, m_ptr, l_ptr);
     _m = block32_ceil(*m_ptr);
@@ -93,6 +96,7 @@ inline int hsum_8x32(__m256i v)
 void matrix_multiply(const int n, const int m, const int l,
                      const int *__restrict a_mat, const int *__restrict b_mat)
 {
+    if (rank > 0) return ;
     int _m = block32_ceil(m) >> 2, step = 4096 / _m, crow;
     int *__restrict c = (int *)malloc(n * l * sizeof(int));
     __m256i mask = _mm256_set1_epi16(0xFF);
@@ -262,6 +266,7 @@ void matrix_multiply(const int n, const int m, const int l,
 // Remember to release your allocated memory
 void destruct_matrices(int *a_mat, int *b_mat)
 {
+    if (rank > 0) return ;
     free(a_mat);
     free(b_mat);
 }
